@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nộp Abi Tập Toán</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+        <h1 class="text-2xl font-bold text-blue-600 mb-6 text-center">Hệ Thống Nộp Bài</h1>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Họ và Tên học sinh</label>
+                <input type="text" id="name" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Ví dụ: Nguyễn Văn A">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Chụp hoặc chọn ảnh bài làm</label>
+                <input type="file" id="file" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+            </div>
+
+            <button onclick="upload()" id="btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition">
+                NỘP BÀI NGAY
+            </button>
+            
+            <p id="msg" class="text-center text-sm mt-2"></p>
+        </div>
+    </div>
+
+    <script>
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzCor4VAW8-MrKNEJhs70pYmY9Wxpy8_sUNgkuFjUfctA3C6picWtU3c4z2t11NexPjTg/exec";
+
+        async function upload() {
+            const name = document.getElementById('name').value;
+            const fileInput = document.getElementById('file');
+            const btn = document.getElementById('btn');
+            const msg = document.getElementById('msg');
+
+            if (!name || !fileInput.files[0]) {
+                alert("Thầy nhắc em nhập tên và chọn ảnh nhé!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "ĐANG TẢI LÊN...";
+            msg.innerText = "Hệ thống đang xử lý, em đợi xíu nhé...";
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                const payload = {
+                    name: name,
+                    base64Data: base64Data,
+                    fileName: file.name,
+                    mimeType: file.type
+                };
+
+                try {
+                    const response = await fetch(WEB_APP_URL, {
+                        method: "POST",
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (result.result === "success") {
+                        msg.innerHTML = "<span class='text-green-600 font-bold'>✅ Đã nộp bài thành công!</span>";
+                        fileInput.value = "";
+                    } else {
+                        msg.innerText = "Có lỗi xảy ra, em thử lại nhé!";
+                    }
+                } catch (err) {
+                    msg.innerText = "Lỗi kết nối!";
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "NỘP BÀI NGAY";
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html>
