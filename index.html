@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nộp Abi Tập Toán</title>
+    <title>Nộp Bài Tập Toán</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
@@ -17,41 +17,51 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700">Chụp hoặc chọn ảnh bài làm</label>
-                <input type="file" id="file" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+                <label class="block text-sm font-medium text-gray-700">Chọn nhiều ảnh bài làm</label>
+                <!-- Thêm thuộc tính 'multiple' để cho phép chọn nhiều ảnh -->
+                <input type="file" id="file" accept="image/*" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+                <p class="text-xs text-gray-500 mt-1">* Có thể chọn 2-3 ảnh cùng lúc</p>
             </div>
 
             <button onclick="upload()" id="btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition">
                 NỘP BÀI NGAY
             </button>
             
-            <p id="msg" class="text-center text-sm mt-2"></p>
+            <p id="msg" class="text-center text-sm mt-2 font-medium"></p>
         </div>
     </div>
 
     <script>
+        // DÁN URL ỨNG DỤNG WEB CỦA THẦY VÀO ĐÂY
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzCor4VAW8-MrKNEJhs70pYmY9Wxpy8_sUNgkuFjUfctA3C6picWtU3c4z2t11NexPjTg/exec";
 
         async function upload() {
-            const name = document.getElementById('name').value;
+            const name = document.getElementById('name').value.trim();
             const fileInput = document.getElementById('file');
             const btn = document.getElementById('btn');
             const msg = document.getElementById('msg');
 
-            if (!name || !fileInput.files[0]) {
+            if (!name || fileInput.files.length === 0) {
                 alert("Thầy nhắc em nhập tên và chọn ảnh nhé!");
                 return;
             }
 
             btn.disabled = true;
-            btn.innerText = "ĐANG TẢI LÊN...";
-            msg.innerText = "Hệ thống đang xử lý, em đợi xíu nhé...";
+            let totalFiles = fileInput.files.length;
+            let successCount = 0;
 
-            const file = fileInput.files[0];
-            const reader = new FileReader();
+            // Xử lý gửi lần lượt từng ảnh để không bị quá tải
+            for (let i = 0; i < totalFiles; i++) {
+                let file = fileInput.files[i];
+                msg.innerHTML = `<span class='text-blue-600'>Đang tải lên ảnh ${i + 1}/${totalFiles}... Xin vui lòng đợi!</span>`;
 
-            reader.onload = async function(e) {
-                const base64Data = e.target.result.split(',')[1];
+                // Chuyển ảnh sang Base64
+                let base64Data = await new Promise((resolve) => {
+                    let reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+                    reader.readAsDataURL(file);
+                });
+
                 const payload = {
                     name: name,
                     base64Data: base64Data,
@@ -66,19 +76,23 @@
                     });
                     const result = await response.json();
                     if (result.result === "success") {
-                        msg.innerHTML = "<span class='text-green-600 font-bold'>✅ Đã nộp bài thành công!</span>";
-                        fileInput.value = "";
-                    } else {
-                        msg.innerText = "Có lỗi xảy ra, em thử lại nhé!";
+                        successCount++;
                     }
                 } catch (err) {
-                    msg.innerText = "Lỗi kết nối!";
-                } finally {
-                    btn.disabled = false;
-                    btn.innerText = "NỘP BÀI NGAY";
+                    console.error("Lỗi khi tải ảnh:", err);
                 }
-            };
-            reader.readAsDataURL(file);
+            }
+
+            // Hiển thị kết quả cuối cùng
+            if (successCount === totalFiles) {
+                msg.innerHTML = `<span class='text-green-600 font-bold'>✅ Đã nộp thành công ${totalFiles} ảnh!</span>`;
+                fileInput.value = ""; // Xóa form sau khi nộp
+            } else {
+                msg.innerHTML = `<span class='text-red-600 font-bold'>⚠️ Nộp thành công ${successCount}/${totalFiles} ảnh. Vui lòng kiểm tra lại mạng và nộp bù ảnh bị thiếu.</span>`;
+            }
+            
+            btn.disabled = false;
+            btn.innerText = "NỘP BÀI NGAY";
         }
     </script>
 </body>
