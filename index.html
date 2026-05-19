@@ -12,15 +12,24 @@
         
         <div class="space-y-4">
             <div>
+                <label class="block text-sm font-medium text-gray-700">Chọn Lớp</label>
+                <select id="className" class="mt-1 block w-full border border-gray-300 rounded-md p-2 bg-white">
+                    <option value="">-- Bấm để chọn lớp --</option>
+                    <option value="LỚP 11B1">LỚP 11B1</option>
+                    <option value="LỚP 11C1">LỚP 11C1</option>
+                    <option value="LỚP 11C4">LỚP 11C4</option>
+                </select>
+            </div>
+
+            <div>
                 <label class="block text-sm font-medium text-gray-700">Họ và Tên học sinh</label>
                 <input type="text" id="name" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Ví dụ: Nguyễn Văn A">
             </div>
 
             <div>
                 <label class="block text-sm font-medium text-gray-700">Chọn nhiều ảnh bài làm</label>
-                <!-- Thêm thuộc tính 'multiple' để cho phép chọn nhiều ảnh -->
                 <input type="file" id="file" accept="image/*" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
-                <p class="text-xs text-gray-500 mt-1">* Có thể chọn 2-3 ảnh cùng lúc</p>
+                <p class="text-xs text-gray-500 mt-1">* Chọn 2-3 ảnh cùng lúc đều được.</p>
             </div>
 
             <button onclick="upload()" id="btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition">
@@ -32,44 +41,69 @@
     </div>
 
     <script>
+        // Hàm nén ảnh giảm dung lượng chống đơ máy yếu
+        function compressImage(file, maxWidth, maxHeight, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = event => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width, height = img.height;
+                        if (width > height) {
+                            if (width > maxWidth) { height *= maxWidth / width; width = maxWidth; }
+                        } else {
+                            if (height > maxHeight) { width *= maxHeight / height; height = maxHeight; }
+                        }
+                        canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        resolve(dataUrl.split(',')[1]);
+                    };
+                    img.onerror = error => reject(error);
+                };
+                reader.onerror = error => reject(error);
+            });
+        }
+
         // DÁN URL ỨNG DỤNG WEB CỦA THẦY VÀO ĐÂY
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzCor4VAW8-MrKNEJhs70pYmY9Wxpy8_sUNgkuFjUfctA3C6picWtU3c4z2t11NexPjTg/exec";
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwnoYmyoxYS15mpMESQ88gu4XudFOeqLm3jlBSs_mGEtZ2Vj8vlyHPDDn1_m90oUgWibg/exec";
 
         async function upload() {
+            const className = document.getElementById('className').value;
             const name = document.getElementById('name').value.trim();
             const fileInput = document.getElementById('file');
             const btn = document.getElementById('btn');
             const msg = document.getElementById('msg');
 
-            if (!name || fileInput.files.length === 0) {
-                alert("Thầy nhắc em nhập tên và chọn ảnh nhé!");
-                return;
-            }
+            if (!className) { alert("Em nhớ chọn Lớp nhé!"); return; }
+            if (!name || fileInput.files.length === 0) { alert("Thầy nhắc em nhập tên và chọn ảnh nhé!"); return; }
 
             btn.disabled = true;
             let totalFiles = fileInput.files.length;
             let successCount = 0;
 
-            // Xử lý gửi lần lượt từng ảnh để không bị quá tải
+            // Xử lý gửi từng ảnh với công nghệ nén
             for (let i = 0; i < totalFiles; i++) {
                 let file = fileInput.files[i];
-                msg.innerHTML = `<span class='text-blue-600'>Đang tải lên ảnh ${i + 1}/${totalFiles}... Xin vui lòng đợi!</span>`;
-
-                // Chuyển ảnh sang Base64
-                let base64Data = await new Promise((resolve) => {
-                    let reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
-                    reader.readAsDataURL(file);
-                });
-
-                const payload = {
-                    name: name,
-                    base64Data: base64Data,
-                    fileName: file.name,
-                    mimeType: file.type
-                };
+                msg.innerHTML = `<span class='text-blue-600'>Đang xử lý và nộp ảnh ${i + 1}/${totalFiles}... Xin vui lòng đợi!</span>`;
 
                 try {
+                    // Nén ảnh: Resize tối đa 1200px, chất lượng 80% (Siêu nhẹ, tải cực nhanh)
+                    let base64Data = await compressImage(file, 1200, 1200, 0.8);
+                    
+                    // Thêm class vào gói dữ liệu gửi đi
+                    const payload = {
+                        className: className,
+                        name: name,
+                        base64Data: base64Data,
+                        fileName: `Anh_${i+1}.jpg`, 
+                        mimeType: 'image/jpeg'
+                    };
+
                     const response = await fetch(WEB_APP_URL, {
                         method: "POST",
                         body: JSON.stringify(payload)
@@ -83,14 +117,13 @@
                 }
             }
 
-            // Hiển thị kết quả cuối cùng
             if (successCount === totalFiles) {
-                msg.innerHTML = `<span class='text-green-600 font-bold'>✅ Đã nộp thành công ${totalFiles} ảnh!</span>`;
-                fileInput.value = ""; // Xóa form sau khi nộp
+                msg.innerHTML = `<span class='text-green-600 font-bold'>✅ Đã nộp thành công ${totalFiles} ảnh vào ${className}!</span>`;
+                fileInput.value = ""; 
+                document.getElementById('name').value = "";
             } else {
-                msg.innerHTML = `<span class='text-red-600 font-bold'>⚠️ Nộp thành công ${successCount}/${totalFiles} ảnh. Vui lòng kiểm tra lại mạng và nộp bù ảnh bị thiếu.</span>`;
+                msg.innerHTML = `<span class='text-red-600 font-bold'>⚠️ Nộp được ${successCount}/${totalFiles} ảnh. Em thử nộp lại ảnh bị thiếu nhé.</span>`;
             }
-            
             btn.disabled = false;
             btn.innerText = "NỘP BÀI NGAY";
         }
