@@ -26,10 +26,18 @@
                 <input type="text" id="name" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Ví dụ: Nguyễn Văn A">
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Chọn nhiều ảnh bài làm</label>
-                <input type="file" id="file" accept="image/*" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
-                <p class="text-xs text-gray-500 mt-1">* Chọn 2-3 ảnh cùng lúc đều được.</p>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                <label for="file" class="cursor-pointer text-blue-600 font-medium hover:text-blue-800">
+                    📸 Bấm vào đây để thêm ảnh bài làm
+                </label>
+                <input type="file" id="file" accept="image/*" class="hidden" multiple onchange="handleFileSelect(event)">
+                <p class="text-xs text-gray-500 mt-2">* Chụp từng tấm hoặc chọn nhiều tấm đều được.</p>
+            </div>
+
+            <div id="previewArea" class="hidden">
+                <p class="text-sm font-medium text-gray-700 mb-2">Ảnh đã chọn (<span id="photoCount">0</span>):</p>
+                <ul id="photoList" class="space-y-2 max-h-48 overflow-y-auto bg-gray-50 p-2 rounded-md border border-gray-200">
+                    </ul>
             </div>
 
             <button onclick="upload()" id="btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition">
@@ -41,7 +49,10 @@
     </div>
 
     <script>
-        // Hàm nén ảnh giảm dung lượng chống đơ máy yếu
+        // Mảng toàn cục để lưu trữ các ảnh học sinh chọn
+        let photoQueue = [];
+
+        // Hàm nén ảnh
         function compressImage(file, maxWidth, maxHeight, quality) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -61,11 +72,65 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
                         const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                        resolve(dataUrl.split(',')[1]);
+                        resolve(dataUrl.split(',')[1]); // Trả về base64
                     };
                     img.onerror = error => reject(error);
                 };
                 reader.onerror = error => reject(error);
+            });
+        }
+
+        // Xử lý khi học sinh chọn ảnh
+        async function handleFileSelect(event) {
+            const files = event.target.files;
+            if(files.length === 0) return;
+
+            document.getElementById('msg').innerHTML = "<span class='text-blue-500'>Đang xử lý ảnh...</span>";
+            
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                let base64 = await compressImage(file, 1200, 1200, 0.8);
+                
+                photoQueue.push({
+                    fileName: file.name || `Anh_${photoQueue.length + 1}.jpg`,
+                    base64Data: base64
+                });
+            }
+
+            document.getElementById('file').value = ""; // Reset ô input để có thể chọn lại ảnh vừa chọn
+            document.getElementById('msg').innerText = "";
+            renderPhotoList();
+        }
+
+        // Xóa 1 ảnh khỏi danh sách
+        function removePhoto(index) {
+            photoQueue.splice(index, 1);
+            renderPhotoList();
+        }
+
+        // Hiển thị danh sách ảnh
+        function renderPhotoList() {
+            const previewArea = document.getElementById('previewArea');
+            const photoList = document.getElementById('photoList');
+            const photoCount = document.getElementById('photoCount');
+
+            if (photoQueue.length === 0) {
+                previewArea.classList.add('hidden');
+                return;
+            }
+
+            previewArea.classList.remove('hidden');
+            photoCount.innerText = photoQueue.length;
+            photoList.innerHTML = "";
+
+            photoQueue.forEach((photo, index) => {
+                const li = document.createElement('li');
+                li.className = "flex justify-between items-center text-sm bg-white p-2 rounded border";
+                li.innerHTML = `
+                    <span class="truncate w-3/4 text-gray-600">Ảnh ${index + 1}</span>
+                    <button onclick="removePhoto(${index})" class="text-red-500 hover:text-red-700 font-bold px-2">X</button>
+                `;
+                photoList.appendChild(li);
             });
         }
 
@@ -75,35 +140,30 @@
         async function upload() {
             const className = document.getElementById('className').value;
             const name = document.getElementById('name').value.trim();
-            const fileInput = document.getElementById('file');
             const btn = document.getElementById('btn');
             const msg = document.getElementById('msg');
 
             if (!className) { alert("Em nhớ chọn Lớp nhé!"); return; }
-            if (!name || fileInput.files.length === 0) { alert("Thầy nhắc em nhập tên và chọn ảnh nhé!"); return; }
+            if (!name) { alert("Thầy nhắc em nhập tên nhé!"); return; }
+            if (photoQueue.length === 0) { alert("Em chưa chọn ảnh bài làm kìa!"); return; }
 
             btn.disabled = true;
-            let totalFiles = fileInput.files.length;
+            let totalFiles = photoQueue.length;
             let successCount = 0;
 
-            // Xử lý gửi từng ảnh với công nghệ nén
             for (let i = 0; i < totalFiles; i++) {
-                let file = fileInput.files[i];
-                msg.innerHTML = `<span class='text-blue-600'>Đang xử lý và nộp ảnh ${i + 1}/${totalFiles}... Xin vui lòng đợi!</span>`;
+                msg.innerHTML = `<span class='text-blue-600'>Đang nộp ảnh ${i + 1}/${totalFiles}... Xin vui lòng đợi!</span>`;
+                
+                let photo = photoQueue[i];
+                const payload = {
+                    className: className,
+                    name: name,
+                    base64Data: photo.base64Data,
+                    fileName: `Anh_${i+1}.jpg`, 
+                    mimeType: 'image/jpeg'
+                };
 
                 try {
-                    // Nén ảnh: Resize tối đa 1200px, chất lượng 80% (Siêu nhẹ, tải cực nhanh)
-                    let base64Data = await compressImage(file, 1200, 1200, 0.8);
-                    
-                    // Thêm class vào gói dữ liệu gửi đi
-                    const payload = {
-                        className: className,
-                        name: name,
-                        base64Data: base64Data,
-                        fileName: `Anh_${i+1}.jpg`, 
-                        mimeType: 'image/jpeg'
-                    };
-
                     const response = await fetch(WEB_APP_URL, {
                         method: "POST",
                         body: JSON.stringify(payload)
@@ -113,16 +173,17 @@
                         successCount++;
                     }
                 } catch (err) {
-                    console.error("Lỗi khi tải ảnh:", err);
+                    console.error("Lỗi:", err);
                 }
             }
 
             if (successCount === totalFiles) {
-                msg.innerHTML = `<span class='text-green-600 font-bold'>✅ Đã nộp thành công ${totalFiles} ảnh vào ${className}!</span>`;
-                fileInput.value = ""; 
-                document.getElementById('name').value = "";
+                msg.innerHTML = `<span class='text-green-600 font-bold'>✅ Đã nộp thành công ${totalFiles} ảnh!</span>`;
+                photoQueue = []; // Xóa danh sách sau khi nộp
+                renderPhotoList();
+                document.getElementById('name').value = ""; // Xóa tên để nộp cho người khác nếu mượn máy
             } else {
-                msg.innerHTML = `<span class='text-red-600 font-bold'>⚠️ Nộp được ${successCount}/${totalFiles} ảnh. Em thử nộp lại ảnh bị thiếu nhé.</span>`;
+                msg.innerHTML = `<span class='text-red-600 font-bold'>⚠️ Nộp được ${successCount}/${totalFiles} ảnh. Em kiểm tra lại mạng nhé!</span>`;
             }
             btn.disabled = false;
             btn.innerText = "NỘP BÀI NGAY";
